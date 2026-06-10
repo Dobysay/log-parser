@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Apache Log Viewer</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    .hidden { display: none; }
+    table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background-color: #f2f2f2; }
+    .controls { margin-bottom: 20px; }
+    input, select, button { padding: 8px; margin-right: 10px; }
+    #progress { margin: 10px 0; color: green; }
+  </style>
+</head>
+<body>
+  <h1>📊 Apache Log Viewer (Online)</h1>
+
+  <section id="loginSection">
+    <h3>Вход</h3>
+    <input id="username" type="text" placeholder="Логин (admin)" value="admin">
+    <input id="password" type="password" placeholder="Пароль (admin123)" value="admin123">
+    <button onclick="login()">Войти</button>
+  </section>
+
+  <section id="appSection" class="hidden">
+    <div class="controls">
+      <input id="keyword" type="text" placeholder="IP адрес">
+      <select id="groupBy">
+        <option value="">Списком</option>
+        <option value="ip">Группировать по IP</option>
+      </select>
+      <button onclick="loadLogs()">🔍 Загрузить</button>
+      <button onclick="forceParse()">⚙️ Парсить логи</button>
+      <button onclick="logout()">Выйти</button is>
+    </div>
+
+    <div id="progress" class="hidden">Загрузка...</div>
+    <table id="results"><thead><tr></tr></thead><tbody></tbody></table>
+  </section>
+
+  <script>
+    const API = '/api';
+    async function login() {
+      const r = await fetch(`${API}/auth/login`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include',
+        body: JSON.stringify({username: document.getElementById('username').value, password: document.getElementById('password').value})
+      });
+      const d = await r.json();
+      if (d.status === 'ok') {
+        document.getElementById('loginSection').classList.add('hidden');
+        document.getElementById('appSection').classList.remove('hidden');
+        loadLogs();
+      } else { alert('❌ ' + d.message); }
+    }
+
+    async function loadLogs() {
+      document.getElementById('progress').classList.remove('hidden');
+      const params = new URLSearchParams({ ip: document.getElementById('keyword').value, group_by: document.getElementById('groupBy').value });
+      const r = await fetch(`${API}/logs?${params}`, { credentials: 'include' });
+      const d = await r.json();
+      document.getElementById('progress').classList.add('hidden');
+      
+      const thead = document.querySelector('#results thead tr');
+      const tbody = document.querySelector('#results tbody');
+      thead.innerHTML = ''; tbody.innerHTML = '';
+      if (d.data.length) {
+        Object.keys(d.data[0]).forEach(k => { const th = document.createElement('th'); th.textContent = k; thead.appendChild(th); });
+        d.data.forEach(row => {
+          const tr = document.createElement('tr');
+          Object.values(row).forEach(v => { const td = document.createElement('td'); td.textContent = v; tr.appendChild(td); });
+          tbody.appendChild(tr);
+        });
+      } else { tbody.innerHTML = '<tr><td colspan="5">Нет данных</td></tr>'; }
+    }
+
+    async function forceParse() {
+      const r = await fetch(`${API}/parse`, { method: 'POST', credentials: 'include' });
+      const d = await r.json();
+      alert(d.status === 'ok' ? `✅ Обработано записей: ${d.parsed}` : `❌ ${d.message}`);
+      loadLogs();
+    }
+
+    function logout() { location.reload(); }
+  </script>
+</body>
+</html>
